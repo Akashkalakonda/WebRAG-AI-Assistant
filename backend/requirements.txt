@@ -1,0 +1,15 @@
+flask
+requests
+beautifulsoup4
+python-dotenv
+serpapi
+huggingface_hub
+langchain
+langchain-community
+langchain-huggingface
+tiktoken
+google-search-results
+streamlit
+chromadb
+sentence-transformers
+groq

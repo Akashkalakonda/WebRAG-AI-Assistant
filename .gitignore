@@ -1,0 +1,62 @@
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+*.env
+.env.*
+!.env.example
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-meta/
+
+# ── Generated / build artifacts ───────────────────────────────────────────────
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+wheels/
+
+# ── Vector store / database ───────────────────────────────────────────────────
+chroma_db/
+*.sqlite3
+*.db
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ── Node (future Next.js frontend) ────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.vercel/
