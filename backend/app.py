@@ -46,7 +46,17 @@ def query():
         # Step 5: Update memory
         memory.save_context({"input": user_query}, {"output": response})
 
-        return jsonify({"response": response, "sources": sources})
+        return jsonify({
+            "response": response,
+            "sources": sources,
+            "stats": {
+                "sources_searched": len(docs),
+                "pages_scraped": len(docs),
+                "chunks_created": len(chunks),
+                "chunks_retrieved": len(retrieved),
+                "model": "llama-3.3-70b-versatile",
+            },
+        })
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
         return jsonify({"error": str(e)}), 500
