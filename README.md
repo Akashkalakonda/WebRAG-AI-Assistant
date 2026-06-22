@@ -49,6 +49,7 @@ Groq LLaMA 3.3 70B
      │
      ▼
 Grounded Response + Sources
+```text
 
 ⚙️ Tech Stack
 Frontend
