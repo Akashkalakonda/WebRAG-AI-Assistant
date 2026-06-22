@@ -1,153 +1,176 @@
-# WebRAG Chatbot
+# 🪐 WebRAG — Web-Grounded AI Research Assistant
 
-A web-search-grounded RAG (Retrieval-Augmented Generation) assistant. For any user query it searches the web, scrapes source pages, embeds the content into a vector store, retrieves the most semantically relevant chunks, and generates a cited answer using an LLM.
+WebRAG is an AI-powered research assistant that combines real-time web search, semantic retrieval, and large language models to generate accurate, source-grounded answers.
 
-## Architecture (Phase 1)
+Instead of relying solely on an LLM's training data, WebRAG searches the web, retrieves relevant information, builds a temporary knowledge base, and generates responses backed by cited sources.
 
-```
+---
+
+## 🚀 Features
+
+- 🔍 Real-time web search using SerpAPI
+- 🌐 Automatic webpage scraping and content extraction
+- 🧠 Semantic chunking and vector embeddings
+- 📚 Retrieval-Augmented Generation (RAG) pipeline
+- 🤖 Answer generation using Groq LLaMA 3.3 70B
+- 📑 Source attribution and citation support
+- 💬 Conversational chat interface
+- 🌙 Modern dark-themed Streamlit UI
+
+---
+
+## 🏗️ System Architecture
+
+```text
 User Query
-  └─► SerpAPI (Google Search)
-        └─► BeautifulSoup scrape (up to 5 URLs)
-              └─► Chunk (500-char overlapping windows)
-                    └─► Embed (all-MiniLM-L6-v2, 384-dim)
-                          └─► ChromaDB (cosine similarity index)
-                                └─► Top-5 semantic retrieval
-                                      └─► Groq LLM (llama-3.3-70b-versatile)
-                                            └─► Response + source citations
-```
+     │
+     ▼
+SerpAPI Search
+     │
+     ▼
+Web Scraping
+(BeautifulSoup)
+     │
+     ▼
+Text Chunking
+     │
+     ▼
+Embedding Generation
+(sentence-transformers)
+     │
+     ▼
+ChromaDB Vector Store
+     │
+     ▼
+Relevant Context Retrieval
+     │
+     ▼
+Groq LLaMA 3.3 70B
+     │
+     ▼
+Grounded Response + Sources
 
-## Tech Stack
+⚙️ Tech Stack
+Frontend
+Streamlit
+Custom CSS
+Real-time streaming interface
+Backend
+Flask
+Python
+Retrieval Layer
+LangChain
+ChromaDB
+Sentence Transformers
+Search & Scraping
+SerpAPI
+BeautifulSoup
+LLM
+Groq API
+LLaMA 3.3 70B
+🔄 RAG Pipeline
+1. Search
 
-| Layer | Technology |
-|---|---|
-| Backend API | Flask |
-| Frontend UI | Streamlit |
-| Web Search | SerpAPI (Google Search) |
-| Web Scraping | BeautifulSoup4 |
-| Embeddings | sentence-transformers / all-MiniLM-L6-v2 |
-| Vector Store | ChromaDB (persistent) |
-| LLM | Groq — llama-3.3-70b-versatile |
-| Conversation Memory | LangChain ConversationBufferMemory |
+The system searches the web using SerpAPI to identify relevant sources for the user's query.
 
-## Project Structure
+2. Scrape
 
-```
-RAG based Chatbot/
-├── backend/
-│   ├── app.py              # Flask server — /query endpoint, pipeline orchestration
-│   ├── scraper.py          # SerpAPI search + BeautifulSoup scrape
-│   ├── rag.py              # Chunking, embedding, ChromaDB storage, retrieval
-│   ├── llm.py              # Groq LLM call, prompt construction, source deduplication
-│   ├── requirements.txt    # Python dependencies
-│   ├── .env.example        # Environment variable template
-│   ├── test_e2e_real.py    # End-to-end pipeline test (real LLM)
-│   └── test_llm_groq.py    # LLM unit test
+Relevant webpages are scraped and cleaned using BeautifulSoup.
+
+3. Chunk
+
+Extracted content is split into smaller semantic chunks suitable for retrieval.
+
+4. Embed
+
+Chunks are converted into vector embeddings using the all-MiniLM-L6-v2 Sentence Transformer model.
+
+5. Store
+
+Embeddings are stored in ChromaDB for similarity search.
+
+6. Retrieve
+
+The most relevant chunks are retrieved based on semantic similarity to the user query.
+
+7. Generate
+
+Retrieved context is passed to Groq's LLaMA 3.3 70B model to generate a grounded answer.
+
+📸 Interface
+Main Features
+Chat-based interaction
+Streaming responses
+Source citations
+Retrieval statistics
+Conversation history
+Responsive dark-themed UI
+📂 Project Structure
+WebRAG-AI-Assistant/
+│
 ├── frontend/
-│   └── app.py              # Streamlit chat UI
-├── ROADMAP.md              # Full migration roadmap (Phases 0–4)
-├── PHASE1_PLAN.md          # Detailed Phase 1 implementation plan
-└── CLAUDE.md               # Project instructions
-```
+│   └── app.py
+│
+├── backend/
+│   ├── app.py
+│   ├── rag.py
+│   ├── scraper.py
+│   └── llm.py
+│
+├── .streamlit/
+│   └── config.toml
+│
+├── requirements.txt
+└── README.md
+🔑 Environment Variables
 
-## Setup
+Create a .env file:
 
-### Prerequisites
+SERPAPI_API_KEY=your_key
+GROQ_API_KEY=your_key
+🛠️ Installation
 
-- Python 3.12
-- Conda (recommended) or any Python virtual environment
-- A [SerpAPI](https://serpapi.com) key (free tier: 100 searches/month)
-- A [Groq](https://console.groq.com) API key (free tier)
+Clone the repository:
 
-### 1. Create and activate environment
+git clone https://github.com/Akashkalakonda/WebRAG-AI-Assistant.git
+cd WebRAG-AI-Assistant
 
-```bash
-conda create -n ragproject python=3.12
-conda activate ragproject
-```
+Install dependencies:
 
-### 2. Install dependencies
-
-```bash
-cd backend
 pip install -r requirements.txt
-```
-
-### 3. Configure environment variables
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Edit `backend/.env` and fill in your keys:
-
-```
-SERPAPI_KEY=your_serpapi_key_here
-GROQ_API_KEY=your_groq_api_key_here
-```
-
-### 4. Run the backend
-
-```bash
+▶️ Running the Project
+Backend
 cd backend
 python app.py
-```
 
-The Flask server starts on `http://localhost:5001`.
+Runs on:
 
-### 5. Run the frontend
-
-In a separate terminal:
-
-```bash
-conda activate ragproject
+http://localhost:5001
+Frontend
 streamlit run frontend/app.py
-```
 
-Open `http://localhost:8501` in your browser.
+Runs on:
 
-## API
+http://localhost:8501
+🎯 Key Learning Outcomes
 
-### POST /query
+This project demonstrates:
 
-**Request**
-```json
-{ "query": "What is retrieval-augmented generation?" }
-```
+Retrieval-Augmented Generation (RAG)
+Vector Databases
+Semantic Search
+Information Retrieval
+LLM Integration
+Prompt Engineering
+Web Scraping
+Streamlit Application Development
+AI System Design
 
-**Response**
-```json
-{
-  "response": "RAG combines information retrieval with LLM generation [1]. ...",
-  "sources": [
-    { "url": "https://example.com/rag", "title": "RAG Overview" }
-  ]
-}
-```
-
-## Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `SERPAPI_KEY` | Yes | SerpAPI key for Google Search |
-| `GROQ_API_KEY` | Yes | Groq API key for LLM inference |
-| `HUGGINGFACE_API_KEY` | No | Legacy — not currently used |
-
-## Running Tests
-
-```bash
-cd backend
-python test_e2e_real.py   # Full pipeline: chunk → embed → retrieve → LLM
-python test_llm_groq.py   # LLM unit test only
-```
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for the full four-phase migration plan:
-
-| Phase | Goal | Status |
-|---|---|---|
-| 0 | Security hardening | Complete |
-| 1 | True RAG backend | **Complete** |
-| 2 | Streaming responses, async scraping, caching | Planned |
-| 3 | Next.js frontend | Planned |
-| 4 | Vercel deployment | Planned |
+🔮 Future Improvements
+Multi-turn conversational memory
+Hybrid retrieval (BM25 + Vector Search)
+Re-ranking models
+Persistent user sessions
+PDF and document ingestion
+Streamlit Community Cloud deployment
+Multi-source research mode
