@@ -1,8 +1,13 @@
+print("APP.PY STARTED", flush=True)
 from flask import Flask, request, jsonify, Response, stream_with_context
+print("FLASK IMPORTED", flush=True)
 from scraper import search_and_scrape
+print("SCRAPER IMPORTED", flush=True)
 from llm import generate_response, generate_stream
+print("LLM IMPORTED", flush=True)
 from langchain.memory import ConversationBufferMemory
 import rag
+print("RAG IMPORTED", flush=True)
 import logging
 import os
 import json
@@ -127,3 +132,4 @@ if __name__ == '__main__':
 
     port = int(os.getenv("PORT", 5001))
     app.run(host='0.0.0.0', port=port, debug=False)
+    print("STARTING FLASK SERVER", flush=True)
