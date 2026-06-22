@@ -86,8 +86,8 @@ html, body, [data-testid="stApp"] {
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: rgba(8,11,24,0.97) !important;
-    border-right: 1px solid rgba(255,255,255,0.055) !important;
+    background: rgba(11,15,30,0.98) !important;
+    border-right: 1px solid rgba(255,255,255,0.10) !important;
 }
 [data-testid="stSidebar"] > div:first-child {
     padding-top: 1.4rem !important;
@@ -125,8 +125,12 @@ html, body, [data-testid="stApp"] {
     margin: 0 auto !important;
 }
 
-/* ── Hide Streamlit chrome ── */
-#MainMenu, footer, header { visibility: hidden !important; }
+/* ── Hide Streamlit chrome (never hide the sidebar expand button) ── */
+#MainMenu, footer { visibility: hidden !important; }
+[data-testid="stToolbar"]   { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+/* Ensure sidebar collapsed control stays fully visible regardless of parent rules */
+[data-testid="stSidebarCollapsedControl"] { visibility: visible !important; }
 
 /* ── Chat messages ── */
 [data-testid="stChatMessage"] {
@@ -193,8 +197,26 @@ html, body, [data-testid="stApp"] {
 [data-testid="stChatInput"] textarea {
     background: transparent !important;
     color: #F8FAFC !important;
+    -webkit-text-fill-color: #F8FAFC !important;
+    caret-color: #A78BFA !important;
     font-family: 'Inter', sans-serif !important;
     font-size: 14px !important;
+}
+
+/* ── Markdown text — force readable contrast inside chat messages ── */
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] td,
+[data-testid="stMarkdownContainer"] th {
+    color: #E2E8F0 !important;
+}
+[data-testid="stMarkdownContainer"] code {
+    color: #C4B5FD !important;
+    background: rgba(124,58,237,0.12) !important;
+}
+[data-testid="stMarkdownContainer"] a {
+    color: #A78BFA !important;
 }
 
 /* ── Horizontal rule ── */
@@ -212,10 +234,10 @@ hr {
     layer.id = 'wr-stars';
     layer.style.cssText = [
         'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
-        'pointer-events:none', 'z-index:0', 'overflow:hidden'
+        'pointer-events:none', 'z-index:9999', 'overflow:hidden'
     ].join(';');
     var style = document.createElement('style');
-    style.textContent = '@keyframes twinkle{0%,100%{opacity:.04}50%{opacity:.52}}';
+    style.textContent = '@keyframes twinkle{0%,100%{opacity:.06}50%{opacity:.55}}';
     document.head.appendChild(style);
     for (var i = 0; i < 65; i++) {
         var s = document.createElement('div');
