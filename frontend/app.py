@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 import json
 from datetime import datetime
@@ -93,18 +94,17 @@ html, body, [data-testid="stApp"] {
     padding-top: 1.4rem !important;
 }
 
-/* Sidebar expand button (shown when sidebar is collapsed) */
-[data-testid="stSidebarCollapsedControl"] {
-    background: rgba(124,58,237,0.12) !important;
-    border-right: 1px solid rgba(124,58,237,0.35) !important;
-    border-bottom: 1px solid rgba(124,58,237,0.2) !important;
-    border-radius: 0 10px 10px 0 !important;
+/* Sidebar expand button — data-testid confirmed from Streamlit 1.58 bundle */
+[data-testid="stExpandSidebarButton"] {
+    background: rgba(124,58,237,0.15) !important;
+    border-radius: 8px !important;
+    padding: 4px !important;
     transition: background 0.18s !important;
 }
-[data-testid="stSidebarCollapsedControl"]:hover {
-    background: rgba(124,58,237,0.26) !important;
+[data-testid="stExpandSidebarButton"]:hover {
+    background: rgba(124,58,237,0.32) !important;
 }
-[data-testid="stSidebarCollapsedControl"] svg {
+[data-testid="stExpandSidebarButton"] svg {
     color: #A78BFA !important;
     fill: #A78BFA !important;
 }
@@ -125,12 +125,12 @@ html, body, [data-testid="stApp"] {
     margin: 0 auto !important;
 }
 
-/* ── Hide Streamlit chrome (never hide the sidebar expand button) ── */
+/* ── Hide Streamlit chrome ── */
+/* stToolbar must NOT be hidden — it contains stExpandSidebarButton */
 #MainMenu, footer { visibility: hidden !important; }
-[data-testid="stToolbar"]   { display: none !important; }
-[data-testid="stDecoration"] { display: none !important; }
-/* Ensure sidebar collapsed control stays fully visible regardless of parent rules */
-[data-testid="stSidebarCollapsedControl"] { visibility: visible !important; }
+[data-testid="stDecoration"]    { display: none !important; }
+[data-testid="stToolbarActions"] { display: none !important; }
+[data-testid="stHeader"]        { background: transparent !important; }
 
 /* ── Chat messages ── */
 [data-testid="stChatMessage"] {
@@ -194,7 +194,8 @@ html, body, [data-testid="stApp"] {
     border-color: rgba(124,58,237,0.42) !important;
     box-shadow: 0 0 0 3px rgba(124,58,237,0.09) !important;
 }
-[data-testid="stChatInput"] textarea {
+/* stChatInputTextArea is the actual textarea data-testid (confirmed Streamlit 1.58 bundle) */
+[data-testid="stChatInputTextArea"] {
     background: transparent !important;
     color: #F8FAFC !important;
     -webkit-text-fill-color: #F8FAFC !important;
@@ -226,38 +227,6 @@ hr {
     margin: 10px 0 !important;
 }
 </style>
-
-<script>
-(function() {
-    if (document.getElementById('wr-stars')) return;
-    var layer = document.createElement('div');
-    layer.id = 'wr-stars';
-    layer.style.cssText = [
-        'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
-        'pointer-events:none', 'z-index:9999', 'overflow:hidden'
-    ].join(';');
-    var style = document.createElement('style');
-    style.textContent = '@keyframes twinkle{0%,100%{opacity:.06}50%{opacity:.55}}';
-    document.head.appendChild(style);
-    for (var i = 0; i < 65; i++) {
-        var s = document.createElement('div');
-        var big = Math.random() > 0.78;
-        s.style.cssText = [
-            'position:absolute',
-            'width:' + (big ? '2' : '1') + 'px',
-            'height:' + (big ? '2' : '1') + 'px',
-            'background:white',
-            'border-radius:50%',
-            'left:' + (Math.random() * 100) + '%',
-            'top:' + (Math.random() * 100) + '%',
-            'animation:twinkle ' + (2 + Math.random() * 4) + 's ease-in-out '
-                + (Math.random() * 6) + 's infinite'
-        ].join(';');
-        layer.appendChild(s);
-    }
-    document.body.appendChild(layer);
-})();
-</script>
 """
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -394,6 +363,47 @@ for key, default in {
 
 # ── Inject CSS + stars ────────────────────────────────────────────────────────
 st.markdown(CSS, unsafe_allow_html=True)
+
+# ── Twinkling stars via components.html ───────────────────────────────────────
+# st.markdown scripts never execute (Streamlit uses innerHTML).
+# components.v1.html() renders an iframe where JS runs; window.parent gives
+# same-origin access to the parent page DOM so we can inject the star layer.
+STARS_JS = """
+<script>
+(function(){
+  var doc=window.parent.document;
+  if(doc.getElementById('wr-stars'))return;
+
+  /* Inject keyframes into parent document — the stars live there */
+  if(!doc.getElementById('wr-twinkle-kf')){
+    var kf=doc.createElement('style');
+    kf.id='wr-twinkle-kf';
+    kf.textContent='@keyframes twinkle{0%,100%{opacity:.06}50%{opacity:.55}}';
+    doc.head.appendChild(kf);
+  }
+
+  var layer=doc.createElement('div');
+  layer.id='wr-stars';
+  layer.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;'
+    +'pointer-events:none;z-index:9999;overflow:hidden;';
+  for(var i=0;i<65;i++){
+    var s=doc.createElement('div');
+    var big=Math.random()>0.78;
+    s.style.cssText='position:absolute;'
+      +'width:'+(big?'2':'1')+'px;'
+      +'height:'+(big?'2':'1')+'px;'
+      +'background:white;border-radius:50%;'
+      +'left:'+(Math.random()*100)+'%;'
+      +'top:'+(Math.random()*100)+'%;'
+      +'animation:twinkle '+(2+Math.random()*4)+'s ease-in-out '
+        +(Math.random()*6)+'s infinite;';
+    layer.appendChild(s);
+  }
+  doc.body.appendChild(layer);
+})();
+</script>
+"""
+components.html(STARS_JS, height=0, scrolling=False)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
