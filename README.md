@@ -5,6 +5,8 @@ WebRAG is an AI-powered research assistant that combines real-time web search, s
 Instead of relying solely on an LLM's training data, WebRAG searches the web, retrieves relevant information, builds a temporary knowledge base, and generates responses backed by cited sources.
 
 ---
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/d50ac909-46d8-464a-9e09-1fc73ebdf6a8" />
+
 
 ## 🚀 Features
 
