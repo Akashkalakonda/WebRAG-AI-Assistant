@@ -202,6 +202,40 @@ html, body, [data-testid="stApp"] {
     transition: border-color 0.18s, box-shadow 0.18s !important;
     color-scheme: dark !important;
 }
+
+[data-testid="stBottom"] {
+    background: transparent !important;
+}
+
+[data-testid="stBottom"] > div {
+    background: transparent !important;
+}
+
+[data-testid="stBottom"] > div > div {
+    background: transparent !important;
+}
+
+/* Force Streamlit wrapper dark */
+[data-testid="stChatInput"] > div {
+    background-color: #0D1421 !important;
+    border-radius: 13px !important;
+}
+
+[data-baseweb="textarea"] {
+    background-color: #0D1421 !important;
+}
+
+/* BaseWeb wrappers discovered via DevTools */
+[data-baseweb="base-input"] {
+    background-color: #0D1421 !important;
+    border: 1px solid rgba(124,58,237,0.35) !important;
+    border-radius: 14px !important;
+}
+
+[data-baseweb="textarea"] {
+    background-color: #0D1421 !important;
+}
+
 [data-testid="stChatInput"]:focus-within {
     border-color: rgba(124,58,237,0.42) !important;
     box-shadow: 0 0 0 3px rgba(124,58,237,0.09) !important;
@@ -541,9 +575,9 @@ with st.sidebar:
     section_header("About")
     st.markdown(
         "<div style='font-size:12px; color:#334155; line-height:1.65;'>"
-        "Phase 1 RAG implementation. Searches the web, chunks and embeds "
-        "content into ChromaDB, retrieves relevant passages, and generates "
-        "grounded answers with source citations."
+        "WebRAG is a web-grounded AI research assistant that combines real-time "
+        "web search, semantic retrieval, and large language models to generate "
+        "accurate, context-aware answers with transparent source citations."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -627,7 +661,7 @@ if not st.session_state.messages and not pending:
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-
+active_query = st.session_state.get("pending_query")
 # ── Message history ───────────────────────────────────────────────────────────
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -639,15 +673,16 @@ for msg in st.session_state.messages:
                 render_sources(msg.get("sources", []))
         render_timestamp(msg.get("ts", ""))
 
-# ── Chat input ────────────────────────────────────────────────────────────────
-chat_input = st.chat_input("Ask anything…")
+# # ── Chat input ────────────────────────────────────────────────────────────────
+# chat_input = st.chat_input("Ask anything…")
 
-active_query = chat_input or st.session_state.get("pending_query")
-if st.session_state.get("pending_query"):
-    st.session_state.pending_query = None
+# active_query = chat_input or st.session_state.get("pending_query")
+# if st.session_state.get("pending_query"):
+#     st.session_state.pending_query = None
 
 # ── Process query (streaming) ─────────────────────────────────────────────────
 if active_query:
+    st.session_state.pending_query = None
     ts = now_ts()
 
     with st.chat_message("user"):
@@ -768,3 +803,9 @@ if active_query:
             "error_kind": error_kind,
             "ts":         resp_ts,
         })
+# ── Chat input (always rendered last) ────────────────────────────────────────
+chat_input = st.chat_input("Ask anything…")
+
+if chat_input:
+    st.session_state.pending_query = chat_input
+    st.rerun()        
