@@ -80,6 +80,10 @@ html, body, [data-testid="stApp"] {
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0);   }
 }
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 6px  rgba(124,58,237,0.35), 0 0 0 1px rgba(124,58,237,0.5); }
+    50%       { box-shadow: 0 0 18px rgba(124,58,237,0.75), 0 0 0 1px rgba(124,58,237,0.8); }
+}
 
 .planet-float    { animation: float    4s ease-in-out infinite; display: inline-block; }
 .planet-float-sm { animation: float-sm 5s ease-in-out infinite; display: inline-block; }
@@ -96,17 +100,24 @@ html, body, [data-testid="stApp"] {
 
 /* Sidebar expand button — data-testid confirmed from Streamlit 1.58 bundle */
 [data-testid="stExpandSidebarButton"] {
-    background: rgba(124,58,237,0.15) !important;
+    background: rgba(124,58,237,0.28) !important;
+    border: 1px solid rgba(124,58,237,0.65) !important;
     border-radius: 8px !important;
-    padding: 4px !important;
-    transition: background 0.18s !important;
+    padding: 5px !important;
+    animation: pulse-glow 2.8s ease-in-out infinite !important;
+    transition: background 0.18s, transform 0.15s !important;
 }
 [data-testid="stExpandSidebarButton"]:hover {
-    background: rgba(124,58,237,0.32) !important;
+    background: rgba(124,58,237,0.48) !important;
+    transform: scale(1.08) !important;
+    animation: none !important;
+    box-shadow: 0 0 22px rgba(124,58,237,0.7) !important;
 }
 [data-testid="stExpandSidebarButton"] svg {
-    color: #A78BFA !important;
-    fill: #A78BFA !important;
+    color: #DDD6FE !important;
+    fill: #DDD6FE !important;
+    width: 18px !important;
+    height: 18px !important;
 }
 
 /* Sidebar collapse button (the < arrow) */
@@ -189,34 +200,55 @@ html, body, [data-testid="stApp"] {
     border: 1px solid rgba(255,255,255,0.08) !important;
     background: rgba(13,18,35,0.9) !important;
     transition: border-color 0.18s, box-shadow 0.18s !important;
+    color-scheme: dark !important;
 }
 [data-testid="stChatInput"]:focus-within {
     border-color: rgba(124,58,237,0.42) !important;
     box-shadow: 0 0 0 3px rgba(124,58,237,0.09) !important;
 }
-/* stChatInputTextArea is the actual textarea data-testid (confirmed Streamlit 1.58 bundle) */
-[data-testid="stChatInputTextArea"] {
-    background: transparent !important;
+/*
+ * stChatInputTextArea is the actual <textarea> data-testid (confirmed Streamlit 1.58 bundle,
+ * BaseWeb ChatInput passes data-testid to the Input override which maps to the <textarea>).
+ * We also target [data-testid="stChatInput"] textarea as a DOM-path fallback in case
+ * BaseWeb introduces any intermediate wrapper between the outer div and the textarea.
+ * Omitting background:transparent lets BaseWeb's own inputFill (#0D1421) hold so there
+ * is no chance of a light background slipping in from an intermediate element.
+ */
+[data-testid="stChatInputTextArea"],
+[data-testid="stChatInput"] textarea {
+    color-scheme: dark !important;
     color: #F8FAFC !important;
     -webkit-text-fill-color: #F8FAFC !important;
     caret-color: #A78BFA !important;
     font-family: 'Inter', sans-serif !important;
     font-size: 14px !important;
+    opacity: 1 !important;
 }
 
-/* ── Markdown text — force readable contrast inside chat messages ── */
+/* ── Markdown / response text — force readable contrast ── */
+/*
+ * stMarkdownContainer is used by st.markdown() and also by st.empty().markdown()
+ * after the placeholder is filled.  stChatMessageContent wraps the whole bubble.
+ * Both selectors are needed to cover streaming (stEmpty → stMarkdownContainer)
+ * and history replay (stChatMessageContent > stMarkdownContainer).
+ */
 [data-testid="stMarkdownContainer"],
 [data-testid="stMarkdownContainer"] p,
 [data-testid="stMarkdownContainer"] li,
 [data-testid="stMarkdownContainer"] td,
-[data-testid="stMarkdownContainer"] th {
+[data-testid="stMarkdownContainer"] th,
+[data-testid="stChatMessageContent"],
+[data-testid="stChatMessageContent"] p,
+[data-testid="stChatMessageContent"] li {
     color: #E2E8F0 !important;
 }
-[data-testid="stMarkdownContainer"] code {
+[data-testid="stMarkdownContainer"] code,
+[data-testid="stChatMessageContent"] code {
     color: #C4B5FD !important;
     background: rgba(124,58,237,0.12) !important;
 }
-[data-testid="stMarkdownContainer"] a {
+[data-testid="stMarkdownContainer"] a,
+[data-testid="stChatMessageContent"] a {
     color: #A78BFA !important;
 }
 
@@ -372,9 +404,48 @@ STARS_JS = """
 <script>
 (function(){
   var doc=window.parent.document;
+
+  /* ── CSS fixes injected into parent <head> ──────────────────────────────
+   * This runs after Streamlit/emotion have already injected their styles,
+   * so our rules land LAST in <head> and win the cascade even without
+   * the blunt !important that st.markdown CSS already provides.
+   * z-index: 50 puts stars above the page background (.stApp has no
+   * stacking context) but below the sidebar (z-index: 100) and all UI.
+   */
+  if(!doc.getElementById('wr-fix-css')){
+    var fix=doc.createElement('style');
+    fix.id='wr-fix-css';
+    fix.textContent=
+      /* chat input typed text */
+      '[data-testid="stChatInputTextArea"],'
+      +'[data-testid="stChatInput"] textarea{'
+        +'color-scheme:dark!important;'
+        +'color:#F8FAFC!important;'
+        +'-webkit-text-fill-color:#F8FAFC!important;'
+        +'caret-color:#A78BFA!important;'
+        +'opacity:1!important'
+      +'}'
+      /* response / markdown text */
+      +'[data-testid="stMarkdownContainer"],'
+      +'[data-testid="stMarkdownContainer"] p,'
+      +'[data-testid="stMarkdownContainer"] li,'
+      +'[data-testid="stChatMessageContent"],'
+      +'[data-testid="stChatMessageContent"] p{'
+        +'color:#E2E8F0!important'
+      +'}'
+      +'[data-testid="stMarkdownContainer"] a,'
+      +'[data-testid="stChatMessageContent"] a{color:#A78BFA!important}'
+      +'[data-testid="stMarkdownContainer"] code,'
+      +'[data-testid="stChatMessageContent"] code{'
+        +'color:#C4B5FD!important;'
+        +'background:rgba(124,58,237,.12)!important'
+      +'}';
+    doc.head.appendChild(fix);
+  }
+
+  /* ── Twinkling star field ─────────────────────────────────────────────── */
   if(doc.getElementById('wr-stars'))return;
 
-  /* Inject keyframes into parent document — the stars live there */
   if(!doc.getElementById('wr-twinkle-kf')){
     var kf=doc.createElement('style');
     kf.id='wr-twinkle-kf';
@@ -384,8 +455,10 @@ STARS_JS = """
 
   var layer=doc.createElement('div');
   layer.id='wr-stars';
+  /* z-index 50: above .stApp background (no stacking context → paints at
+   * normal-flow level), below sidebar (z-index 100) and all UI elements. */
   layer.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;'
-    +'pointer-events:none;z-index:9999;overflow:hidden;';
+    +'pointer-events:none;z-index:50;overflow:hidden;';
   for(var i=0;i<65;i++){
     var s=doc.createElement('div');
     var big=Math.random()>0.78;
