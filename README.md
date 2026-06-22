@@ -7,6 +7,8 @@ Instead of relying solely on an LLM's training data, WebRAG searches the web, re
 ---
 <img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/d50ac909-46d8-464a-9e09-1fc73ebdf6a8" />
 
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/776192b7-68a3-4185-a19e-6fdd46dfc331" />
+
 
 ## 🚀 Features
 
