@@ -5,7 +5,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Loaded once when this module is first imported; reused for every request.
-_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+_model = None
+
+def get_model():
+    global _model
+
+    if _model is None:
+        logger.info("Loading embedding model...")
+        _model = SentenceTransformer(
+            "sentence-transformers/all-MiniLM-L6-v2"
+        )
+        logger.info("Embedding model loaded.")
+
+    return _model
 _client = chromadb.PersistentClient(path="./chroma_db")
 _collection = _client.get_or_create_collection(
     name="rag_knowledge",
@@ -54,7 +66,7 @@ def embed_and_store(chunks):
     texts = [c["text"] for c in chunks]
     ids = [c["id"] for c in chunks]
     metadatas = [{"url": c["url"], "title": c["title"]} for c in chunks]
-    embeddings = _model.encode(texts, show_progress_bar=False).tolist()
+    embeddings = get_model().encode(texts, show_progress_bar=False).tolist()
     _collection.upsert(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
     logger.debug(f"Upserted {len(chunks)} chunks into ChromaDB")
 
@@ -67,7 +79,7 @@ def retrieve(query, k=5):
     count = _collection.count()
     if count == 0:
         return []
-    query_embedding = _model.encode([query], show_progress_bar=False).tolist()
+    query_embedding = get_model().encode([query], show_progress_bar=False).tolist()
     results = _collection.query(
         query_embeddings=query_embedding,
         n_results=min(k, count),
