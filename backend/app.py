@@ -122,5 +122,8 @@ def query_stream():
 
 
 if __name__ == '__main__':
-    rag.reset_collection()
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    if os.getenv("RESET_CHROMA", "false").lower() == "true":
+        rag.reset_collection()
+
+    port = int(os.getenv("PORT", 5001))
+    app.run(host='0.0.0.0', port=port, debug=False)
