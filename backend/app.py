@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from scraper import search_and_scrape
-from llm import generate_response
+from llm import generate_response, generate_stream
 from langchain.memory import ConversationBufferMemory
 import rag
 import logging
 import os
+import json
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.DEBUG)
@@ -60,6 +61,65 @@ def query():
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/query/stream', methods=['POST'])
+def query_stream():
+    data = request.get_json()
+    user_query = (data.get('query') or '').strip()[:1000]
+    if not user_query:
+        return jsonify({"error": "query must be a non-empty string"}), 400
+
+    def _generate():
+        try:
+            yield json.dumps({"type": "status", "stage": "searching"}) + "\n"
+            docs = search_and_scrape(user_query)
+
+            yield json.dumps({"type": "status", "stage": "processing"}) + "\n"
+            chunks = rag.chunk_documents(docs)
+
+            yield json.dumps({"type": "status", "stage": "embedding"}) + "\n"
+            rag.embed_and_store(chunks)
+
+            yield json.dumps({"type": "status", "stage": "retrieving"}) + "\n"
+            retrieved = rag.retrieve(user_query, k=5)
+
+            memory_context = memory.load_memory_variables({}).get("history", "")
+
+            seen_urls, sources = set(), []
+            for chunk in retrieved:
+                if chunk["url"] not in seen_urls:
+                    seen_urls.add(chunk["url"])
+                    sources.append({"url": chunk["url"], "title": chunk["title"]})
+
+            stats = {
+                "sources_searched": len(docs),
+                "pages_scraped":    len(docs),
+                "chunks_created":   len(chunks),
+                "chunks_retrieved": len(retrieved),
+                "model":            "llama-3.3-70b-versatile",
+            }
+            yield json.dumps({"type": "meta", "sources": sources, "stats": stats}) + "\n"
+
+            yield json.dumps({"type": "status", "stage": "generating"}) + "\n"
+
+            full_response = ""
+            for token in generate_stream(user_query, retrieved, memory_context):
+                full_response += token
+                yield json.dumps({"type": "token", "data": token}) + "\n"
+
+            memory.save_context({"input": user_query}, {"output": full_response})
+            yield json.dumps({"type": "done"}) + "\n"
+
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+    return Response(
+        stream_with_context(_generate()),
+        content_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
+
 
 if __name__ == '__main__':
     rag.reset_collection()

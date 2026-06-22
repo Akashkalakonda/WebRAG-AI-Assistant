@@ -78,3 +78,48 @@ def generate_response(query, chunks, memory_context="", retries=3, delay=2):
     except Exception as e:
         logger.error(f"Error generating response: {e}")
         return f"Error generating response: {e}", []
+
+
+def generate_stream(query, chunks, memory_context=""):
+    """Yield Groq response tokens one by one (stream=True)."""
+    if not GROQ_API_KEY:
+        yield "Error: GROQ_API_KEY not found."
+        return
+    if not chunks:
+        yield "No relevant content found for this query. Try rephrasing."
+        return
+
+    client = Groq(api_key=GROQ_API_KEY)
+    context_parts = [f"[{i}] {chunk['text']}" for i, chunk in enumerate(chunks, 1)]
+    context_string = "\n\n".join(context_parts)
+
+    system_msg = (
+        "You are a helpful assistant. Answer the user's question using ONLY "
+        "the numbered sources provided. Cite sources inline by number, e.g. [1], [2]. "
+        "If the sources are insufficient to answer, say so clearly."
+    )
+    user_msg = (
+        f"Conversation History:\n{memory_context}\n\n"
+        f"Sources:\n{context_string}\n\n"
+        f"Question: {query}"
+    )
+
+    try:
+        completion = client.chat.completions.create(
+            model=_MODEL,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            max_tokens=500,
+            temperature=0.7,
+            top_p=0.9,
+            stream=True,
+        )
+        for chunk in completion:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+    except Exception as e:
+        logger.error(f"Groq streaming error: {e}")
+        yield f"\n\n[Generation error: {str(e)}]"

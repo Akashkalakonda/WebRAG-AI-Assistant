@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import json
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -27,7 +28,15 @@ TECH_STACK = [
     "Groq LLaMA 3.3 70B", "LangChain",
 ]
 
-# ── CSS ───────────────────────────────────────────────────────────────────────
+STAGE_LABELS = {
+    "searching":  "🔍  Searching the web…",
+    "processing": "🌐  Processing source pages…",
+    "embedding":  "🧠  Chunking and embedding content…",
+    "retrieving": "📚  Retrieving relevant context…",
+    "generating": "🤖  Generating answer…",
+}
+
+# ── CSS + Animations ──────────────────────────────────────────────────────────
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -39,15 +48,41 @@ html, body, [data-testid="stApp"] {
     color: #F8FAFC !important;
 }
 
-/* Subtle purple radial glow at top + star-dot grid */
+/* Radial glow + grid */
 .stApp {
     background-color: #0B1020 !important;
     background-image:
         radial-gradient(ellipse 90% 45% at 50% -5%, rgba(124,58,237,0.18) 0%, transparent 65%),
-        radial-gradient(rgba(255,255,255,0.032) 1px, transparent 1px) !important;
+        radial-gradient(rgba(255,255,255,0.028) 1px, transparent 1px) !important;
     background-size: 100% 100%, 54px 54px !important;
     background-attachment: fixed !important;
 }
+
+/* ── Keyframe animations ── */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-10px); }
+}
+@keyframes float-sm {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-5px); }
+}
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1;   transform: scale(1);   }
+    50%       { opacity: 0.3; transform: scale(0.55); }
+}
+@keyframes twinkle {
+    0%, 100% { opacity: 0.04; }
+    50%       { opacity: 0.52; }
+}
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0);   }
+}
+
+.planet-float    { animation: float    4s ease-in-out infinite; display: inline-block; }
+.planet-float-sm { animation: float-sm 5s ease-in-out infinite; display: inline-block; }
+.fade-in         { animation: fade-in  0.35s ease both; }
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
@@ -56,6 +91,31 @@ html, body, [data-testid="stApp"] {
 }
 [data-testid="stSidebar"] > div:first-child {
     padding-top: 1.4rem !important;
+}
+
+/* Sidebar expand button (shown when sidebar is collapsed) */
+[data-testid="stSidebarCollapsedControl"] {
+    background: rgba(124,58,237,0.12) !important;
+    border-right: 1px solid rgba(124,58,237,0.35) !important;
+    border-bottom: 1px solid rgba(124,58,237,0.2) !important;
+    border-radius: 0 10px 10px 0 !important;
+    transition: background 0.18s !important;
+}
+[data-testid="stSidebarCollapsedControl"]:hover {
+    background: rgba(124,58,237,0.26) !important;
+}
+[data-testid="stSidebarCollapsedControl"] svg {
+    color: #A78BFA !important;
+    fill: #A78BFA !important;
+}
+
+/* Sidebar collapse button (the < arrow) */
+[data-testid="stSidebarCollapseButton"] button {
+    color: #334155 !important;
+    transition: color 0.15s !important;
+}
+[data-testid="stSidebarCollapseButton"] button:hover {
+    color: #A78BFA !important;
 }
 
 /* ── Main content column ── */
@@ -91,16 +151,7 @@ html, body, [data-testid="stApp"] {
     color: #94A3B8 !important;
 }
 
-/* ── Status widget ── */
-[data-testid="stStatusWidget"],
-[data-testid="stStatus"] {
-    background: rgba(14,18,36,0.85) !important;
-    border: 1px solid rgba(124,58,237,0.18) !important;
-    border-radius: 10px !important;
-    font-size: 13px !important;
-}
-
-/* ── Buttons ── */
+/* ── Buttons (New Conversation + suggestion chips) ── */
 .stButton > button {
     background: rgba(124,58,237,0.11) !important;
     border: 1px solid rgba(124,58,237,0.24) !important;
@@ -109,17 +160,23 @@ html, body, [data-testid="stApp"] {
     font-family: 'Inter', sans-serif !important;
     font-size: 13px !important;
     font-weight: 500 !important;
-    padding: 0.38rem 1rem !important;
-    transition: all 0.17s ease !important;
+    padding: 0.42rem 1rem !important;
+    transition: background 0.17s ease, border-color 0.17s ease,
+                color 0.17s ease, transform 0.17s ease, box-shadow 0.17s ease !important;
     width: 100% !important;
+    cursor: pointer !important;
 }
 .stButton > button:hover {
     background: rgba(124,58,237,0.24) !important;
-    border-color: rgba(124,58,237,0.48) !important;
+    border-color: rgba(124,58,237,0.52) !important;
     color: #DDD6FE !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 24px rgba(124,58,237,0.18) !important;
 }
 .stButton > button:active {
-    background: rgba(124,58,237,0.35) !important;
+    transform: translateY(0) !important;
+    background: rgba(124,58,237,0.36) !important;
+    box-shadow: none !important;
 }
 
 /* ── Chat input ── */
@@ -147,6 +204,38 @@ hr {
     margin: 10px 0 !important;
 }
 </style>
+
+<script>
+(function() {
+    if (document.getElementById('wr-stars')) return;
+    var layer = document.createElement('div');
+    layer.id = 'wr-stars';
+    layer.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+        'pointer-events:none', 'z-index:0', 'overflow:hidden'
+    ].join(';');
+    var style = document.createElement('style');
+    style.textContent = '@keyframes twinkle{0%,100%{opacity:.04}50%{opacity:.52}}';
+    document.head.appendChild(style);
+    for (var i = 0; i < 65; i++) {
+        var s = document.createElement('div');
+        var big = Math.random() > 0.78;
+        s.style.cssText = [
+            'position:absolute',
+            'width:' + (big ? '2' : '1') + 'px',
+            'height:' + (big ? '2' : '1') + 'px',
+            'background:white',
+            'border-radius:50%',
+            'left:' + (Math.random() * 100) + '%',
+            'top:' + (Math.random() * 100) + '%',
+            'animation:twinkle ' + (2 + Math.random() * 4) + 's ease-in-out '
+                + (Math.random() * 6) + 's infinite'
+        ].join(';');
+        layer.appendChild(s);
+    }
+    document.body.appendChild(layer);
+})();
+</script>
 """
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -167,8 +256,8 @@ def render_sources(sources: list):
     label = f"Sources  ·  {len(sources)} reference{'s' if len(sources) != 1 else ''}"
     with st.expander(label, expanded=False):
         for i, src in enumerate(sources, 1):
-            title = src.get("title") or "Untitled"
-            url   = src.get("url", "")
+            title  = src.get("title") or "Untitled"
+            url    = src.get("url", "")
             domain = get_domain(url)
             st.markdown(
                 f"""
@@ -178,8 +267,10 @@ def render_sources(sources: list):
                     border-radius: 8px;
                     padding: 10px 14px;
                     margin: 4px 0;
-                    transition: border-color 0.18s;
-                ">
+                    transition: border-color 0.18s, background 0.18s;
+                "
+                onmouseover="this.style.borderColor='rgba(124,58,237,0.32)';this.style.background='rgba(124,58,237,0.1)'"
+                onmouseout="this.style.borderColor='rgba(124,58,237,0.14)';this.style.background='rgba(124,58,237,0.06)'">
                     <div style="font-weight:600; font-size:13px; color:#E2E8F0; margin-bottom:3px;">
                         [{i}]&nbsp;&nbsp;{title}
                     </div>
@@ -272,24 +363,23 @@ def section_header(text: str):
 
 # ── Session state ─────────────────────────────────────────────────────────────
 for key, default in {
-    "messages": [],       # {role, content, sources, ts, error_kind}
-    "stats": None,        # pipeline stats dict from backend
+    "messages":      [],   # {role, content, sources, ts, error_kind}
+    "stats":         None, # pipeline stats dict from backend
     "pending_query": None,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Inject CSS ────────────────────────────────────────────────────────────────
+# ── Inject CSS + stars ────────────────────────────────────────────────────────
 st.markdown(CSS, unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # Brand
     st.markdown(
         """
         <div style="text-align:center; padding:4px 0 22px 0;
                     border-bottom:1px solid rgba(255,255,255,0.055);">
-            <div style="font-size:32px; margin-bottom:6px;">🪐</div>
+            <div class="planet-float-sm" style="font-size:32px; margin-bottom:6px;">🪐</div>
             <div style="
                 font-size:22px; font-weight:700; letter-spacing:-0.3px;
                 background: linear-gradient(135deg, #A78BFA 0%, #7C3AED 100%);
@@ -311,7 +401,6 @@ with st.sidebar:
         st.session_state.pending_query = None
         st.rerun()
 
-    # Pipeline stats
     section_header("Pipeline Stats")
     if st.session_state.stats:
         s = st.session_state.stats
@@ -328,7 +417,6 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    # Tech stack
     section_header("Tech Stack")
     badges = "".join(
         f'<span style="'
@@ -345,7 +433,6 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # About
     section_header("About")
     st.markdown(
         "<div style='font-size:12px; color:#334155; line-height:1.65;'>"
@@ -361,8 +448,8 @@ pending = st.session_state.get("pending_query")
 if not st.session_state.messages and not pending:
     st.markdown(
         """
-        <div style="text-align:center; padding:52px 0 36px 0;">
-            <div style="font-size:44px; margin-bottom:10px;">🪐</div>
+        <div style="text-align:center; padding:52px 0 36px 0;" class="fade-in">
+            <div class="planet-float" style="font-size:48px; margin-bottom:10px;">🪐</div>
             <div style="
                 font-size:34px; font-weight:700; letter-spacing:-0.5px;
                 background: linear-gradient(135deg, #A78BFA 0%, #7C3AED 100%);
@@ -377,7 +464,6 @@ if not st.session_state.messages and not pending:
         unsafe_allow_html=True,
     )
 
-    # How it works card
     st.markdown(
         """
         <div style="
@@ -389,7 +475,7 @@ if not st.session_state.messages and not pending:
             padding: 22px 28px;
             max-width: 560px;
             margin: 0 auto 32px auto;
-        ">
+        " class="fade-in">
             <div style="
                 font-size:10px; font-weight:600; text-transform:uppercase;
                 letter-spacing:0.09em; color:#334155; margin-bottom:16px;
@@ -421,7 +507,6 @@ if not st.session_state.messages and not pending:
         unsafe_allow_html=True,
     )
 
-    # Suggestion chips label
     st.markdown(
         "<div style='text-align:center; font-size:12px; color:#334155; "
         "margin-bottom:10px;'>Try asking</div>",
@@ -452,16 +537,14 @@ for msg in st.session_state.messages:
 # ── Chat input ────────────────────────────────────────────────────────────────
 chat_input = st.chat_input("Ask anything…")
 
-# Resolve active query (typed input wins over suggestion)
 active_query = chat_input or st.session_state.get("pending_query")
 if st.session_state.get("pending_query"):
     st.session_state.pending_query = None
 
-# ── Process query ─────────────────────────────────────────────────────────────
+# ── Process query (streaming) ─────────────────────────────────────────────────
 if active_query:
     ts = now_ts()
 
-    # User bubble
     with st.chat_message("user"):
         st.markdown(active_query)
         render_timestamp(ts)
@@ -471,75 +554,112 @@ if active_query:
         "ts": ts,
     })
 
-    # Assistant bubble
     with st.chat_message("assistant"):
-        answer = None
+        answer     = ""
         sources: list = []
         error_kind = None
 
-        with st.status("Processing your query…", expanded=True) as status:
-            st.write("🔍  Searching the web…")
-            st.write("🌐  Scraping source pages…")
-            st.write("🧠  Chunking and embedding content…")
-            st.write("📚  Retrieving relevant context…")
-            st.write("🤖  Generating answer…")
+        status_ph = st.empty()
+        token_ph  = st.empty()
 
-            try:
-                resp = requests.post(
-                    f"{BACKEND_URL}/query",
-                    json={"query": active_query},
-                    timeout=120,
-                )
+        def _status_html(label: str) -> str:
+            return (
+                f'<div style="background:rgba(14,18,36,0.85);'
+                f'border:1px solid rgba(124,58,237,0.18);border-radius:10px;'
+                f'padding:10px 16px;font-size:13px;color:#94A3B8;margin-bottom:10px;">'
+                f'<span style="display:inline-block;width:6px;height:6px;'
+                f'background:#7C3AED;border-radius:50%;margin-right:9px;'
+                f'animation:pulse-dot 1.4s ease-in-out infinite;"></span>'
+                f'{label}</div>'
+            )
+
+        def _complete_html(n: int) -> str:
+            plural = "s" if n != 1 else ""
+            return (
+                f'<div style="background:rgba(14,18,36,0.85);'
+                f'border:1px solid rgba(34,197,94,0.25);border-radius:10px;'
+                f'padding:10px 16px;font-size:13px;color:#86EFAC;margin-bottom:10px;">'
+                f'&#10003;&nbsp;&nbsp;Complete &middot; {n} source{plural} retrieved</div>'
+            )
+
+        def _error_status_html(msg: str = "Generation failed") -> str:
+            return (
+                f'<div style="background:rgba(14,18,36,0.85);'
+                f'border:1px solid rgba(239,68,68,0.25);border-radius:10px;'
+                f'padding:10px 16px;font-size:13px;color:#FCA5A5;margin-bottom:10px;">'
+                f'&#10007;&nbsp;&nbsp;{msg}</div>'
+            )
+
+        status_ph.markdown(_status_html(STAGE_LABELS["searching"]), unsafe_allow_html=True)
+
+        try:
+            with requests.post(
+                f"{BACKEND_URL}/query/stream",
+                json={"query": active_query},
+                stream=True,
+                timeout=120,
+            ) as resp:
                 resp.raise_for_status()
-                data = resp.json()
 
-                if "error" in data:
-                    raise ValueError(data["error"])
+                for raw in resp.iter_lines():
+                    if not raw:
+                        continue
+                    event = json.loads(raw)
+                    etype = event.get("type")
 
-                answer  = data.get("response", "")
-                sources = data.get("sources", [])
-                stats   = data.get("stats")
+                    if etype == "status":
+                        label = STAGE_LABELS.get(event.get("stage", ""), "Processing…")
+                        status_ph.markdown(_status_html(label), unsafe_allow_html=True)
 
-                if stats:
-                    st.session_state.stats = stats
+                    elif etype == "meta":
+                        sources = event.get("sources", [])
+                        stats   = event.get("stats", {})
+                        if stats:
+                            st.session_state.stats = stats
 
-                n = len(sources)
-                status.update(
-                    label=f"Complete  ·  {n} source{'s' if n != 1 else ''} retrieved",
-                    state="complete",
-                    expanded=False,
-                )
+                    elif etype == "token":
+                        answer += event["data"]
+                        token_ph.markdown(answer + " ▌")
 
-            except requests.exceptions.ConnectionError:
-                error_kind = "connection"
-                status.update(label="Connection failed", state="error", expanded=False)
+                    elif etype == "done":
+                        status_ph.markdown(_complete_html(len(sources)), unsafe_allow_html=True)
+                        token_ph.markdown(answer)
 
-            except requests.exceptions.Timeout:
-                error_kind = "server"
-                status.update(label="Request timed out", state="error", expanded=False)
+                    elif etype == "error":
+                        error_kind = "generation"
+                        msg_text = str(event.get("message", ""))[:80]
+                        status_ph.markdown(_error_status_html(msg_text or "Generation failed"), unsafe_allow_html=True)
 
-            except requests.exceptions.HTTPError as e:
-                error_kind = "server"
-                status.update(label=f"Server error ({e.response.status_code})", state="error", expanded=False)
+        except requests.exceptions.ConnectionError:
+            error_kind = "connection"
+            status_ph.markdown(_error_status_html("Cannot connect to backend"), unsafe_allow_html=True)
 
-            except Exception as e:
-                error_kind = "generation"
-                status.update(label="Generation failed", state="error", expanded=False)
+        except requests.exceptions.Timeout:
+            error_kind = "server"
+            status_ph.markdown(_error_status_html("Request timed out"), unsafe_allow_html=True)
 
-        # Render result outside the status block
+        except requests.exceptions.HTTPError as e:
+            error_kind = "server"
+            status_ph.markdown(
+                _error_status_html(f"Server error ({e.response.status_code})"),
+                unsafe_allow_html=True,
+            )
+
+        except Exception:
+            error_kind = "generation"
+            status_ph.markdown(_error_status_html(), unsafe_allow_html=True)
+
         resp_ts = now_ts()
         if answer:
-            st.markdown(answer)
             render_sources(sources)
         elif error_kind:
             render_error(error_kind)
-
         render_timestamp(resp_ts)
 
         st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer or "",
-            "sources": sources,
+            "role":       "assistant",
+            "content":    answer or "",
+            "sources":    sources,
             "error_kind": error_kind,
-            "ts": resp_ts,
+            "ts":         resp_ts,
         })
